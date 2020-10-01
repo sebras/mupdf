@@ -64,6 +64,7 @@ jobs:
     #    uses a compiled language
 
     - run: |
+       sed -i -e 's,url = \.\./thirdparty,url = https://git.ghostscript.com/thirdparty,g' -e 's,url = \.\.\/,url = https://git.ghostscript.com/,g' .gitmodules
        git submodule update --init --recursive
        make
        make -C platform/java
