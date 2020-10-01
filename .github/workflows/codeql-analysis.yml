@@ -24,7 +24,7 @@ jobs:
       matrix:
         # Override automatic language detection by changing the below list
         # Supported options are ['csharp', 'cpp', 'go', 'java', 'javascript', 'python']
-        language: ['cpp', 'java', 'python', 'javascript']
+        language: ['cpp', 'python', 'javascript']
         # Learn more...
         # https://docs.github.com/en/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#overriding-automatic-language-detection
 
@@ -67,7 +67,6 @@ jobs:
        sed -i -e 's,url = \.\./thirdparty,url = https://git.ghostscript.com/thirdparty,g' -e 's,url = \.\.\/,url = https://git.ghostscript.com/,g' .gitmodules
        git submodule update --init --recursive
        make HAVE_X11=no HAVE_GLUT=no
-       make HAVE_X11=no HAVE_GLUT=no -C platform/java
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
