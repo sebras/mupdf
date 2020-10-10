@@ -10,7 +10,7 @@
 #include <stdio.h> /* for debug printing */
 /* #define DEBUG_LINEARIZATION */
 /* #define DEBUG_HEAP_SORT */
-/* #define DEBUG_WRITING */
+#define DEBUG_WRITING
 
 #define SIG_EXTRAS_SIZE (1024)
 
@@ -135,8 +135,10 @@ expand_lists(fz_context *ctx, pdf_write_state *opts, int num)
 {
 	int i;
 
+
 	/* objects are numbered 0..num and maybe two additional objects for linearization */
 	num += 3;
+	fz_warn(ctx, "expand list_len = %d -> %d", opts->list_len, num);
 	opts->use_list = fz_realloc_array(ctx, opts->use_list, num, int);
 	opts->ofs_list = fz_realloc_array(ctx, opts->ofs_list, num, int64_t);
 	opts->gen_list = fz_realloc_array(ctx, opts->gen_list, num, int);
@@ -228,7 +230,10 @@ page_objects_list_insert(fz_context *ctx, pdf_write_state *opts, int page, int o
 {
 	page_objects_list_ensure(ctx, &opts->page_object_lists, page+1);
 	if (object >= opts->list_len)
+	{
+		fz_warn(ctx, "EXPAND %s", __FUNCTION__);
 		expand_lists(ctx, opts, object);
+	}
 	if (opts->page_object_lists->len < page+1)
 		opts->page_object_lists->len = page+1;
 	page_objects_insert(ctx, &opts->page_object_lists->page[page], object);
@@ -239,7 +244,10 @@ page_objects_list_set_page_object(fz_context *ctx, pdf_write_state *opts, int pa
 {
 	page_objects_list_ensure(ctx, &opts->page_object_lists, page+1);
 	if (object >= opts->list_len)
+	{
+		fz_warn(ctx, "EXPAND %s", __FUNCTION__);
 		expand_lists(ctx, opts, object);
+	}
 	opts->page_object_lists->page[page]->page_object_number = object;
 }
 
@@ -538,7 +546,14 @@ objects_dump(fz_context *ctx, pdf_document *doc, pdf_write_state *opts)
 {
 	int i;
 
-	for (i=0; i < pdf_xref_len(ctx, doc); i++)
+	i = 1356;
+	if (i < pdf_xref_len(ctx, doc))
+	{
+		pdf_xref_entry *e = pdf_get_xref_entry(ctx, doc, i);
+		fprintf(stderr, "Object %d use=%x offset=%d\n", i, opts->use_list[i], (int)opts->ofs_list[i]);
+		pdf_debug_obj(ctx, e->obj);
+	}
+	for (i=1560; i < pdf_xref_len(ctx, doc); i++)
 	{
 		fprintf(stderr, "Object %d use=%x offset=%d\n", i, opts->use_list[i], (int)opts->ofs_list[i]);
 	}
@@ -753,7 +768,10 @@ static void removeduplicateobjs(fz_context *ctx, pdf_document *doc, pdf_write_st
 			newnum = fz_mini(num, other);
 			max_num = fz_maxi(num, other);
 			if (max_num >= opts->list_len)
+			{
+				fz_warn(ctx, "EXPAND %s", __FUNCTION__);
 				expand_lists(ctx, opts, max_num);
+			}
 			opts->renumber_map[num] = newnum;
 			opts->renumber_map[other] = newnum;
 			opts->rev_renumber_map[newnum] = num; /* Either will do */
@@ -784,7 +802,10 @@ static void compactxref(fz_context *ctx, pdf_document *doc, pdf_write_state *opt
 	 */
 
 	if (xref_len > opts->list_len)
+	{
+		fz_warn(ctx, "EXPAND %s", __FUNCTION__);
 		expand_lists(ctx, opts, xref_len-1);
+	}
 
 	newnum = 1;
 	for (num = 1; num < xref_len; num++)
@@ -985,7 +1006,10 @@ mark_all(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, pdf_obj *val
 		{
 			int num = pdf_to_num(ctx, val);
 			if (num >= opts->list_len)
+			{
+				fz_warn(ctx, "EXPAND %s", __FUNCTION__);
 				expand_lists(ctx, opts, num);
+			}
 			if (opts->use_list[num] & USE_PAGE_MASK)
 				/* Already used */
 				opts->use_list[num] |= USE_SHARED;
@@ -2252,6 +2276,7 @@ static void writexrefstream(fz_context *ctx, pdf_document *doc, pdf_write_state 
 	fz_try(ctx)
 	{
 		num = pdf_create_object(ctx, doc);
+		fz_warn(ctx, "EXPAND %s", __FUNCTION__);
 		expand_lists(ctx, opts, num);
 
 		dict = pdf_new_dict(ctx, doc, 6);
@@ -2374,6 +2399,8 @@ static void
 dowriteobject(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, int num, int pass)
 {
 	pdf_xref_entry *entry = pdf_get_xref_entry(ctx, doc, num);
+	if (num == 1356 || num >= 1560)
+		fz_warn(ctx, "%d: %c", num, entry->type);
 	if (entry->type == 'f')
 		opts->gen_list[num] = entry->gen;
 	if (entry->type == 'n')
@@ -2765,7 +2792,14 @@ static void dump_object_details(fz_context *ctx, pdf_document *doc, pdf_write_st
 {
 	int i;
 
-	for (i = 0; i < pdf_xref_len(ctx, doc); i++)
+	i = 1356;
+	if (i < pdf_xref_len(ctx, doc))
+	{
+		pdf_xref_entry *e = pdf_get_xref_entry(ctx, doc, i);
+		fprintf(stderr, "%d@%ld: use=%d\n", i, opts->ofs_list[i], opts->use_list[i]);
+		pdf_debug_obj(ctx, e->obj);
+	}
+	for (i = 1560; i < pdf_xref_len(ctx, doc); i++)
 	{
 		fprintf(stderr, "%d@%ld: use=%d\n", i, opts->ofs_list[i], opts->use_list[i]);
 	}
@@ -2821,7 +2855,9 @@ static void complete_signatures(fz_context *ctx, pdf_document *doc, pdf_write_st
 	{
 		for (s = 0; s < doc->num_incremental_sections; s++)
 		{
+			fz_warn(ctx, "sections %d", doc->num_incremental_sections);
 			pdf_xref *xref = &doc->xref_sections[doc->num_incremental_sections - s - 1];
+			fz_warn(ctx, "sebras-1 %lu", xref->end_ofs);
 
 			if (xref->unsaved_sigs)
 			{
@@ -2849,6 +2885,7 @@ static void complete_signatures(fz_context *ctx, pdf_document *doc, pdf_write_st
 					char *bstr, *cstr, *fstr;
 					size_t bytes_read;
 					int pnum = pdf_obj_parent_num(ctx, pdf_dict_getl(ctx, usig->field, PDF_NAME(V), PDF_NAME(ByteRange), NULL));
+					fz_warn(ctx, "SEEK %ld READ OBJECT %d", opts->ofs_list[pnum], pnum);
 					fz_seek(ctx, stm, opts->ofs_list[pnum], SEEK_SET);
 					/* SIG_EXTRAS_SIZE is an arbitrary value and its addition above to buf_size
 					 * could cause an attempt to read off the end of the file. That's not an
@@ -2876,7 +2913,9 @@ static void complete_signatures(fz_context *ctx, pdf_document *doc, pdf_write_st
 				/* Recreate ByteRange with correct values. Initially store the
 				* recreated object in the first of the unsaved signatures */
 				byte_range = pdf_new_array(ctx, doc, 4);
+				fz_warn(ctx, "sebras0"); pdf_debug_obj(ctx, byte_range); fz_flush_warnings(ctx);
 				pdf_dict_putl_drop(ctx, xref->unsaved_sigs->field, byte_range, PDF_NAME(V), PDF_NAME(ByteRange), NULL);
+				fz_warn(ctx, "sebras1"); pdf_debug_obj(ctx, byte_range); fz_flush_warnings(ctx);
 
 				last_end = 0;
 				for (usig = xref->unsaved_sigs; usig; usig = usig->next)
@@ -2885,15 +2924,26 @@ static void complete_signatures(fz_context *ctx, pdf_document *doc, pdf_write_st
 					pdf_array_push_int(ctx, byte_range, usig->contents_start - last_end);
 					last_end = usig->contents_end;
 				}
+				fz_warn(ctx, "sebras2"); pdf_debug_obj(ctx, byte_range); fz_flush_warnings(ctx);
 				pdf_array_push_int(ctx, byte_range, last_end);
+				fz_warn(ctx, "sebras3"); pdf_debug_obj(ctx, byte_range); fz_flush_warnings(ctx);
+
+				fz_warn(ctx, "sebras3.4 %zu", last_end);
+				fz_warn(ctx, "sebras3.5 %lu", xref->end_ofs);
+
 				pdf_array_push_int(ctx, byte_range, xref->end_ofs - last_end);
+				fz_warn(ctx, "sebras4"); pdf_debug_obj(ctx, byte_range); fz_flush_warnings(ctx);
 
 				/* Copy the new ByteRange to the other unsaved signatures */
 				for (usig = xref->unsaved_sigs->next; usig; usig = usig->next)
 					pdf_dict_putl_drop(ctx, usig->field, pdf_copy_array(ctx, byte_range), PDF_NAME(V), PDF_NAME(ByteRange), NULL);
+				fz_warn(ctx, "sebras5"); pdf_debug_obj(ctx, byte_range); fz_flush_warnings(ctx);
 
 				/* Write the byte range into buf, padding with spaces*/
+				fz_warn(ctx, "sebras6"); pdf_debug_obj(ctx, byte_range); fz_flush_warnings(ctx);
+
 				ptr = pdf_sprint_obj(ctx, buf, buf_size, &i, byte_range, 1, 0);
+				fz_warn(ctx, "sebras7"); pdf_debug_obj(ctx, byte_range); fz_flush_warnings(ctx);
 				if (ptr != buf) /* should never happen, since data should fit in buf_size */
 					fz_free(ctx, ptr);
 				memset(buf+i, ' ', buf_size-i);
@@ -2908,6 +2958,7 @@ static void complete_signatures(fz_context *ctx, pdf_document *doc, pdf_write_st
 				/* Write the digests into the file */
 				for (usig = xref->unsaved_sigs; usig; usig = usig->next)
 					pdf_write_digest(ctx, opts->out, byte_range, usig->contents_start, usig->contents_end - usig->contents_start, usig->signer);
+				fz_warn(ctx, "sebras8"); pdf_debug_obj(ctx, byte_range); fz_flush_warnings(ctx);
 
 				/* delete the unsaved_sigs records */
 				while ((usig = xref->unsaved_sigs) != NULL)
@@ -2999,6 +3050,7 @@ static void initialise_write_state(fz_context *ctx, pdf_document *doc, const pdf
 	opts->renumber_map = NULL;
 	opts->rev_renumber_map = NULL;
 
+	fz_warn(ctx, "EXPAND %s", __FUNCTION__);
 	expand_lists(ctx, opts, xref_len);
 }
 
@@ -3153,6 +3205,7 @@ int pdf_can_be_saved_incrementally(fz_context *ctx, pdf_document *doc)
 static void
 prepare_for_save(fz_context *ctx, pdf_document *doc, pdf_write_options *in_opts)
 {
+	fz_warn(ctx, __FUNCTION__);
 	/* Rewrite (and possibly sanitize) the operator streams */
 	if (in_opts->do_clean || in_opts->do_sanitize)
 		clean_content_streams(ctx, doc, in_opts->do_sanitize, in_opts->do_ascii);
@@ -3323,6 +3376,10 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 	int xref_len;
 	pdf_obj *id, *id1;
 
+	fz_warn(ctx, __FUNCTION__);
+	fz_warn(ctx, "in_opts.do_incremental = %d", in_opts->do_incremental);
+	fz_warn(ctx, "opts.do_incremental = %d", opts->do_incremental);
+
 	if (in_opts->do_incremental)
 	{
 		/* If no changes, nothing to write */
@@ -3377,6 +3434,7 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 			pdf_ensure_solid_xref(ctx, doc, xref_len);
 			preloadobjstms(ctx, doc);
 			xref_len = pdf_xref_len(ctx, doc); /* May have changed due to repair */
+			fz_warn(ctx, "EXPAND1 %s", __FUNCTION__);
 			expand_lists(ctx, opts, xref_len);
 		}
 
@@ -3386,6 +3444,8 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 		else
 		{
 			xref_len = pdf_xref_len(ctx, doc); /* May have changed due to repair */
+			fz_warn(ctx, "%s xref_len = %d", __FUNCTION__, xref_len);
+			fz_warn(ctx, "EXPAND2 %s", __FUNCTION__);
 			expand_lists(ctx, opts, xref_len);
 			for (num = 0; num < xref_len; num++)
 				opts->use_list[num] = 1;
@@ -3415,6 +3475,7 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 		if ((opts->do_garbage >= 2 || opts->do_linear) && !opts->do_incremental)
 		{
 			xref_len = pdf_xref_len(ctx, doc); /* May have changed due to repair */
+			fz_warn(ctx, "EXPAND3 %s", __FUNCTION__);
 			expand_lists(ctx, opts, xref_len);
 			while (xref_len > 0 && !opts->use_list[xref_len-1])
 				xref_len--;
@@ -3431,6 +3492,8 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 
 			for (i = 0; i < doc->num_incremental_sections; i++)
 			{
+				fz_warn(ctx, "XREF SECTION %d", i);
+
 				doc->xref_base = doc->num_incremental_sections - i - 1;
 
 				writeobjects(ctx, doc, opts, 0);
@@ -3443,6 +3506,7 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 				{
 					if (!opts->use_list[num] && pdf_xref_is_incremental(ctx, doc, num))
 					{
+						fz_warn(ctx, "unreusable %d", num);
 						/* Make unreusable. FIXME: would be better to link to existing free list */
 						opts->gen_list[num] = 65535;
 						opts->ofs_list[num] = 0;
@@ -3451,11 +3515,17 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 
 				opts->first_xref_offset = fz_tell_output(ctx, opts->out);
 				if (doc->has_xref_streams)
+				{
+					fz_warn(ctx, "%s2 xref_len = %d", __FUNCTION__, xref_len);
 					writexrefstream(ctx, doc, opts, 0, xref_len, 1, 0, opts->first_xref_offset);
+				}
 				else
 					writexref(ctx, doc, opts, 0, xref_len, 1, 0, opts->first_xref_offset);
 
 				doc->xref_sections[doc->xref_base].end_ofs = fz_tell_output(ctx, opts->out);
+				fz_flush_warnings(ctx);
+				fz_warn(ctx, "seeting end_ofs %lu (%d)", doc->xref_sections[doc->xref_base].end_ofs, doc->xref_base);
+				fz_flush_warnings(ctx);
 			}
 
 			doc->xref_base = 0;
@@ -3509,6 +3579,9 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 			}
 
 			doc->xref_sections[0].end_ofs = fz_tell_output(ctx, opts->out);
+				fz_flush_warnings(ctx);
+				fz_warn(ctx, "seeting2 end_ofs %lu", doc->xref_sections[0].end_ofs);
+				fz_flush_warnings(ctx);
 		}
 
 		complete_signatures(ctx, doc, opts);

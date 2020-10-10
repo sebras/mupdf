@@ -90,6 +90,7 @@ extend_xref_index(fz_context *ctx, pdf_document *doc, int newlen)
 	{
 		doc->xref_index[i] = 0;
 	}
+	fz_warn(ctx, "extending max_ref_len %d -> %d", doc->max_xref_len, newlen);
 	doc->max_xref_len = newlen;
 }
 
