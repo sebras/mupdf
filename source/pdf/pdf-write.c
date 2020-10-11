@@ -2401,6 +2401,7 @@ dowriteobject(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, int num
 			opts->ofs_list[num] = fz_tell_output(ctx, opts->out);
 			writeobject(ctx, doc, opts, num, opts->gen_list[num], 1, num == opts->crypt_object_number);
 		}
+		opts->use_list[num] = 1;
 	}
 	else
 		opts->use_list[num] = 0;
