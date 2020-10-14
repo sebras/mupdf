@@ -3370,7 +3370,7 @@ static void
 do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, pdf_write_options *in_opts)
 {
 	int lastfree;
-	int num;
+	int num, i;
 	int xref_len;
 	pdf_obj *id, *id1;
 
@@ -3484,7 +3484,6 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 
 		if (opts->do_incremental)
 		{
-			int i;
 
 			doc->disallow_new_increments = 1;
 
@@ -3577,10 +3576,10 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 				writexref(ctx, doc, opts, 0, xref_len, 1, 0, opts->first_xref_offset);
 			}
 
-			doc->xref_sections[0].end_ofs = fz_tell_output(ctx, opts->out);
-				fz_flush_warnings(ctx);
-				fz_warn(ctx, "seeting2 end_ofs %lu", doc->xref_sections[0].end_ofs);
-				fz_flush_warnings(ctx);
+			for (i = 0; i < doc->num_incremental_sections; i++)
+			{
+				doc->xref_sections[i].end_ofs = fz_tell_output(ctx, opts->out);
+			}
 		}
 
 		complete_signatures(ctx, doc, opts);
