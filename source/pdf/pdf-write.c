@@ -2851,11 +2851,11 @@ static void complete_signatures(fz_context *ctx, pdf_document *doc, pdf_write_st
 
 	fz_try(ctx)
 	{
+		fz_warn(ctx, "sections %d", doc->num_incremental_sections);
 		for (s = 0; s < doc->num_incremental_sections; s++)
 		{
-			fz_warn(ctx, "sections %d", doc->num_incremental_sections);
 			pdf_xref *xref = &doc->xref_sections[doc->num_incremental_sections - s - 1];
-			fz_warn(ctx, "sebras-1 %lu", xref->end_ofs);
+			fz_warn(ctx, "unsaved_sigs = %p", xref->unsaved_sigs);
 
 			if (xref->unsaved_sigs)
 			{
@@ -2864,6 +2864,8 @@ static void complete_signatures(fz_context *ctx, pdf_document *doc, pdf_write_st
 				size_t buf_size = 0;
 				size_t i;
 				size_t last_end;
+
+				fz_warn(ctx, "sebras-1 %lu", xref->end_ofs);
 
 				for (usig = xref->unsaved_sigs; usig; usig = usig->next)
 				{
@@ -3531,6 +3533,7 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 		}
 		else
 		{
+			fz_warn(ctx, "XREF = %d", pdf_xref_len(ctx, doc));
 			writeobjects(ctx, doc, opts, 0, pdf_xref_len(ctx, doc));
 
 #ifdef DEBUG_WRITING
@@ -3579,6 +3582,9 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 			for (i = 0; i < doc->num_incremental_sections; i++)
 			{
 				doc->xref_sections[i].end_ofs = fz_tell_output(ctx, opts->out);
+					fz_flush_warnings(ctx);
+					fz_warn(ctx, "seeting2 end_ofs %lu", doc->xref_sections[0].end_ofs);
+					fz_flush_warnings(ctx);
 			}
 		}
 
