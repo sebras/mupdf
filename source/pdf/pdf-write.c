@@ -2434,10 +2434,9 @@ dowriteobject(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, int num
 }
 
 static void
-writeobjects(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, int pass)
+writeobjects(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, int pass, int xref_len)
 {
 	int num;
-	int xref_len = pdf_xref_len(ctx, doc);
 
 	if (!opts->do_incremental)
 	{
@@ -3494,8 +3493,9 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 				fz_warn(ctx, "XREF SECTION %d", i);
 
 				doc->xref_base = doc->num_incremental_sections - i - 1;
+				xref_len = doc->xref_sections[doc->xref_base].num_objects;
 
-				writeobjects(ctx, doc, opts, 0);
+				writeobjects(ctx, doc, opts, 0, xref_len);
 
 #ifdef DEBUG_WRITING
 				dump_object_details(ctx, doc, opts);
@@ -3532,7 +3532,7 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 		}
 		else
 		{
-			writeobjects(ctx, doc, opts, 0);
+			writeobjects(ctx, doc, opts, 0, pdf_xref_len(ctx, doc));
 
 #ifdef DEBUG_WRITING
 			dump_object_details(ctx, doc, opts);
@@ -3566,7 +3566,7 @@ do_pdf_save_document(fz_context *ctx, pdf_document *doc, pdf_write_state *opts, 
 				opts->main_xref_offset += opts->hintstream_len;
 				update_linearization_params(ctx, doc, opts);
 				fz_seek_output(ctx, opts->out, 0, 0);
-				writeobjects(ctx, doc, opts, 1);
+				writeobjects(ctx, doc, opts, 1, pdf_xref_len(ctx, doc));
 
 				padto(ctx, opts->out, opts->main_xref_offset);
 				writexref(ctx, doc, opts, 0, opts->start, 0, 0, opts->first_xref_offset);
